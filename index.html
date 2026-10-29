@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f5a73">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="description" content="院内の簡易懸濁法 可否リストを検索するツール（オフライン対応）">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="簡易懸濁">
+<style>:root{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}[hidden]{display:none!important}</style>
+<title>簡易懸濁チェッカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<style>
+/* Layout: sticky search bar on top, one column of result cards (max 760px), fixed thin 屋号 notice bar at the bottom */
+:root{
+  --bg:#f3f6f7; --surface:#ffffff; --line:#d5dee2; --fg:#16252c; --muted:#5b6d75;
+  --accent:#0f5a73; --accent-soft:#e2eff3;
+  --ok:#1c7348; --ok-bg:#e3f3ea; --ng:#b3261e; --ng-bg:#fbe7e5;
+  --water:#1d5fa8; --water-bg:#e4edf9; --cond:#9a5b00; --cond-bg:#fbefd9;
+  --none:#66757c; --none-bg:#eceff1; --hit:#fff1a8;
+  --f-display:"Zen Kaku Gothic New","BIZ UDPGothic","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f171b; --surface:#162228; --line:#2a3a41; --fg:#e4edf0; --muted:#97a9b0;
+  --accent:#6cc0dc; --accent-soft:#17323c;
+  --ok:#6fd39c; --ok-bg:#163527; --ng:#ff8a80; --ng-bg:#3e1a18;
+  --water:#8ab8f0; --water-bg:#182b44; --cond:#f0b860; --cond-bg:#3a2a10;
+  --none:#9aa8ae; --none-bg:#222f35; --hit:#5a4d10; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f171b; --surface:#162228; --line:#2a3a41; --fg:#e4edf0; --muted:#97a9b0;
+  --accent:#6cc0dc; --accent-soft:#17323c;
+  --ok:#6fd39c; --ok-bg:#163527; --ng:#ff8a80; --ng-bg:#3e1a18;
+  --water:#8ab8f0; --water-bg:#182b44; --cond:#f0b860; --cond-bg:#3a2a10;
+  --none:#9aa8ae; --none-bg:#222f35; --hit:#5a4d10; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.6}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+header .wrap{padding-block:14px 12px;display:grid;gap:10px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-size:20px;margin:0;letter-spacing:.02em;color:var(--accent)}
+.src{font-size:12px;color:var(--muted)}
+.search{position:relative}
+#q{width:100%;font:inherit;font-size:19px;padding:12px 44px 12px 14px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+#q:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+#clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}
+#clear:hover,#clear:focus-visible{background:var(--accent-soft);color:var(--accent);outline:none}
+.hint{font-size:12.5px;color:var(--muted);display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:inherit;font-size:12.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main .wrap{padding-block:14px 90px;display:grid;gap:10px}
+.status{font-size:13px;color:var(--muted)}
+.alert{border:1.5px solid var(--cond);background:var(--cond-bg);color:var(--fg);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.alert b{color:var(--cond)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:76px 1fr;gap:4px 14px;min-width:0}
+.verdict{grid-row:span 3;border-radius:10px;display:grid;place-content:center;text-align:center;padding:8px 4px;align-self:start;min-height:76px}
+.verdict .v{font-family:var(--f-display);font-size:22px;line-height:1.1}
+.verdict .l{font-size:10.5px;letter-spacing:.06em;margin-top:3px}
+.v-ok{background:var(--ok-bg);color:var(--ok)} .v-ng{background:var(--ng-bg);color:var(--ng)}
+.v-water{background:var(--water-bg);color:var(--water)} .v-cond{background:var(--cond-bg);color:var(--cond)}
+.v-none{background:var(--none-bg);color:var(--none)}
+.name{font-size:17px;font-weight:700;line-height:1.4;min-width:0;overflow-wrap:anywhere}
+.name mark{background:var(--hit);color:inherit;border-radius:2px}
+.yago{display:inline-block;font-size:12px;font-weight:700;padding:0 7px;border-radius:5px;border:1.5px solid var(--cond);color:var(--cond);margin-left:6px;vertical-align:2px;white-space:nowrap}
+.facts{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13.5px;min-width:0}
+.facts dt{color:var(--muted);display:inline}
+.facts dd{margin:0 0 0 5px;display:inline;font-weight:700;font-variant-numeric:tabular-nums}
+.facts div{white-space:nowrap}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:5px}
+.t-ng{background:var(--ng-bg);color:var(--ng)} .t-cond{background:var(--cond-bg);color:var(--cond)}
+.t-info{background:var(--accent-soft);color:var(--accent)}
+.note{grid-column:1/-1;font-size:13.5px;border-top:1px dashed var(--line);padding-top:7px;margin-top:4px;min-width:0;overflow-wrap:anywhere}
+.note strong{color:var(--accent)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;color:var(--muted)}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:13px}
+.legend div{display:flex;gap:8px;align-items:center}
+.legend span.sw{width:42px;flex:none;text-align:center;border-radius:6px;font-weight:700;padding:2px 0}
+.footbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);font-size:12px;color:var(--muted);padding-bottom:env(safe-area-inset-bottom,0px)}
+.footbar .wrap{padding-block:7px}
+.footbar b{color:var(--cond)}
+.alt{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;border:2px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:9px 12px;margin-top:4px;min-width:0}
+.alt .arrow{grid-row:span 2;font-family:var(--f-display);font-size:13px;line-height:1.25;color:var(--surface);background:var(--accent);border-radius:7px;padding:6px 8px;text-align:center}
+.alt .to{font-size:17px;font-weight:700;color:var(--accent);min-width:0;overflow-wrap:anywhere}
+.alt .to button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.alt .to button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.alt .to .or{font-size:13px;font-weight:400;color:var(--muted);margin:0 6px}
+.alt .to mark{background:var(--hit);color:inherit}
+.alt .when{font-size:12.5px;color:var(--fg)}
+.alt .when b{color:var(--cond)}
+.sec{font-family:var(--f-display);font-size:14px;color:var(--accent);margin:8px 0 0;padding-top:8px;border-top:2px solid var(--accent-soft)}
+.helpbtn{font:inherit;font-size:13px;font-weight:700;padding:5px 12px;border-radius:999px;border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--accent);cursor:pointer}
+.helpbtn:focus-visible,.q-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.q-btn{font:inherit;font-size:11px;font-weight:700;width:18px;height:18px;line-height:16px;border-radius:50%;border:1.5px solid var(--muted);background:transparent;color:var(--muted);cursor:pointer;padding:0;margin-left:4px;vertical-align:1px}
+.memo{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:14px 16px 16px;display:grid;gap:14px}
+.memo-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.memo h2{font-family:var(--f-display);font-size:18px;margin:0;color:var(--accent)}
+.memo h3{font-family:var(--f-display);font-size:15px;margin:0 0 6px;color:var(--fg);border-left:4px solid var(--accent);padding-left:8px}
+.memo section{min-width:0;scroll-margin-top:190px}
+.memo{scroll-margin-top:190px}
+.memo ol,.memo ul{margin:0;padding-left:1.4em;display:grid;gap:3px}
+.memo p{margin:0 0 6px}
+.memo .small{font-size:12.5px;color:var(--muted)}
+.memo .ng li::marker{color:var(--ng)}
+.tbl{overflow-x:auto}
+.tbl table{border-collapse:collapse;font-size:13.5px;min-width:100%}
+.tbl th,.tbl td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+.tbl th{background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.tbl td:first-child{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.closebtn{font:inherit;font-size:13px;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
+.linkbtn{font:inherit;font-weight:700;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+@media (max-width:420px){.card{grid-template-columns:62px 1fr;gap:4px 10px}.verdict .v{font-size:19px}.name{font-size:16px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <h1>簡易懸濁チェッカー</h1>
+      <button class="helpbtn" type="button" id="helpbtn" aria-expanded="false">はじめての方へ（使い方メモ）</button>
+    </div>
+    <div class="search">
+      <label for="q" class="src" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">薬品名で検索</label>
+      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="薬品名を3文字入力（ひらがな可）" autofocus>
+      <button id="clear" type="button" aria-label="入力を消す" hidden>×</button>
+    </div>
+    <div class="hint">
+      <div class="filters" role="group" aria-label="簡易懸濁の判定で絞り込み">
+        <button class="chip" type="button" data-f="all" aria-pressed="true">すべて</button>
+        <button class="chip" type="button" data-f="ok" aria-pressed="false">可</button>
+        <button class="chip" type="button" data-f="water" aria-pressed="false">水溶</button>
+        <button class="chip" type="button" data-f="ng" aria-pressed="false">不可</button>
+        <button class="chip" type="button" data-f="cancer" aria-pressed="false">抗がん剤</button>
+        <button class="chip" type="button" data-f="clog" aria-pressed="false">詰まりやすい</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap" id="out"></div>
+</main>
+
+<div class="footbar" role="note">
+  <div class="wrap"><b>屋号（メーカー名）を確認してください。</b>後発品はメーカーにより可否が異なります。処方・現物の屋号とリストの「」内が一致するか確認し、不一致・未掲載は薬剤部へ。</div>
+</div>
+
+<script src="data.js"></script>
+<script>
+const DATA = window.KENDAKU_DATA || [];
+// 元リストの版。Excelを改訂したらここも書き換える
+const SOURCE = "院内リスト（SRH 第3回改訂 2021年5月）";
+
+/* ---------- 正規化：半角カナ→全角、ひらがな→カタカナ、空白・記号除去 ---------- */
+function norm(s){
+  s = (s||"").normalize("NFKC").toLowerCase();
+  s = s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0)+0x60));
+  return s.replace(/[\s・･「」『』()（）、,.。\-‐]/g,"");
+}
+// あいまい：濁点・半濁点・小書き・長音を無視
+const SMALL = {"ァ":"ア","ィ":"イ","ゥ":"ウ","ェ":"エ","ォ":"オ","ッ":"ツ","ャ":"ヤ","ュ":"ユ","ョ":"ヨ","ヮ":"ワ","ヵ":"カ","ヶ":"ケ"};
+function loose(s){
+  return norm(s).normalize("NFD").replace(/[゙゚]/g,"").normalize("NFC")
+    .replace(/[ァィゥェォッャュョヮヵヶ]/g,c=>SMALL[c]).replace(/ー/g,"");
+}
+
+const isCancer = d => /抗がん剤|細胞毒性/.test(d.b);
+DATA.forEach((d,i)=>{
+  d.i=i; d.key=norm(d.n); d.lkey=loose(d.n);
+  const m = d.n.match(/「([^」]+)」/g);
+  d.yago = m ? m.map(x=>x.slice(1,-1)).filter(Boolean) : [];
+  d.base = norm(d.n.replace(/「[^」]*」/g,"").split(/[0-9０-９]/)[0]);
+  d.cancer = isCancer(d);
+  d.altKeys = d.alt ? d.alt.to.map(norm) : [];
+  d.big = /^(1[2-9]|[2-9]\d)Fr$/.test(d.t);
+  d.clog = d.big || d.t==="不適" || d.d==="悪" || /詰ま|閉塞|こびりつ|固ま|固化|膨潤|塊|付着|浮いて|出ない/.test(d.b);
+});
+
+const K = {
+  ok:{v:"可",l:"簡易懸濁",cls:"v-ok"},
+  ng:{v:"不可",l:"簡易懸濁",cls:"v-ng"},
+  water:{v:"水溶",l:"水で溶解",cls:"v-water"},
+  cond:{v:"△",l:"条件付き",cls:"v-cond"},
+  none:{v:"—",l:"データなし",cls:"v-none"}
+};
+const F = {ok:"可",ng:"不可",od:"不要（OD錠）",cap:"脱カプセル",cond:"△ 条件付き",none:"—"};
+
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+// 正規化キー上の一致位置を表示名にマップしてハイライト
+function highlight(name,q){
+  if(!q) return esc(name);
+  let map=[], acc="";
+  for(let i=0;i<name.length;i++){
+    const n=norm(name[i]);
+    for(const ch of n){ map.push(i); acc+=ch; }
+  }
+  const p=acc.indexOf(q);
+  if(p<0) return esc(name);
+  const a=map[p], b=map[p+q.length-1]+1;
+  return esc(name.slice(0,a))+"<mark>"+esc(name.slice(a,b))+"</mark>"+esc(name.slice(b));
+}
+
+function tags(d){
+  const t=[], b=d.b;
+  if(d.cancer) t.push(['抗がん剤・取扱注意','t-ng']);
+  if(d.big) t.push([d.t+'以上のチューブで投与','t-cond']);
+  if(d.clog) t.push(['詰まりやすい','t-cond']);
+  if(d.m) t.push(['マクロゴール含有（56〜61℃で凝固）','t-cond']);
+  if(!d.alt && /処方変更|へ変更/.test(b)) t.push(['処方変更の指示あり','t-cond']);
+  if(/経口.{0,8}(不可|飲まない)|経管投与時のみ|経管.{0,4}のみ/.test(b)) t.push(['経口不可・経管のみ','t-cond']);
+  if(/徐放/.test(b)) t.push(['徐放性','t-info']);
+  if(/腸溶/.test(b)) t.push(['腸溶性','t-info']);
+  if(/遮光|光/.test(b)) t.push(['遮光','t-info']);
+  if(/吸湿|湿度|潮解/.test(b)) t.push(['吸湿','t-info']);
+  return t;
+}
+
+function altBox(d,q){
+  const a=d.alt; if(!a) return "";
+  const to = a.to.length
+    ? a.to.map(n=>`<button type="button" class="goto" data-q="${esc(n)}" title="この薬への変更が指示されている薬を表示">${highlight(n,q)}</button>`).join('<span class="or">または</span>')
+    : "薬剤部へ相談";
+  const when=[a.when?`<b>${esc(a.when)}</b>`:"",a.how?esc(a.how):""].filter(Boolean).join("・");
+  const verb = a.how==="注射剤あり" ? "注射剤" : "代替";
+  return `<div class="alt"><div class="arrow">${verb}<br>→</div>
+    <div class="to">${to}</div>
+    <div class="when">${when||"この薬の代わりに処方変更"}</div></div>`;
+}
+
+function card(d,q){
+  const k=K[d.k];
+  const facts=[["粉砕",F[d.f]]];
+  if(d.t) facts.push(["最小通過",d.t]);
+  d.c.forEach(c=>facts.push(["条件",c]));
+  if(d.d) facts.push(["散剤の分散性",d.d]);
+  const tg=tags(d);
+  let note = d.b ? esc(d.b).replace(/(\S+?へ処方変更|\S+?へ変更)/g,"<strong>$1</strong>") : "";
+  return `<article class="card">
+    <div class="verdict ${k.cls}"><div class="v">${k.v}</div><div class="l">${k.l}</div></div>
+    <div class="name">${highlight(d.n,q)}${d.yago.map(y=>`<span class="yago">屋号 ${esc(y)}</span>`).join("")}</div>
+    <dl class="facts">${facts.map(([a,b])=>`<div><dt>${a}${a==="最小通過"?'<button type="button" class="q-btn" data-memo="fr" aria-label="Frの説明を見る">?</button>':""}</dt><dd>${esc(b)}</dd></div>`).join("")}</dl>
+    ${tg.length?`<div class="tags">${tg.map(([a,c])=>`<span class="tag ${c}">${a}</span>`).join("")}</div>`:""}
+    ${altBox(d,q)}
+    ${note?`<div class="note">${note}</div>`:""}
+  </article>`;
+}
+
+let filter="all";
+const $q=document.getElementById("q"), $out=document.getElementById("out"), $clear=document.getElementById("clear");
+
+function passFilter(d){
+  if(filter==="all") return true;
+  if(filter==="cancer") return d.cancer;
+  if(filter==="clog") return d.clog;
+  return d.k===filter;
+}
+
+function landing(){
+  const c={ok:0,ng:0,water:0,cond:0,none:0}; DATA.forEach(d=>c[d.k]++);
+  return `<p class="status">${SOURCE}・${DATA.length}品目</p><p class="status">薬品名を<b>3文字</b>入力すると検索します。ひらがな・カタカナ・半角カナのどれでも検索できます（例：「あむろ」「ﾏｸﾞﾗｯｸｽ」）。</p>
+  <div class="legend">
+    <div><span class="sw v-ok">可</span>簡易懸濁で投与可（${c.ok}）</div>
+    <div><span class="sw v-water">水溶</span>水で溶ける・OD錠など（${c.water}）</div>
+    <div><span class="sw v-ng">不可</span>簡易懸濁は不可（${c.ng}）</div>
+    <div><span class="sw v-cond">△</span>条件付き（${c.cond}）</div>
+    <div><span class="sw v-none">—</span>データなし（${c.none}）</div>
+  </div>
+  <p class="status">「条件」の時間は 55℃のお湯に入れて待つ時間です。「錠剤破壊後」はシートの上から錠剤に亀裂を入れてから入れます。</p>`;
+}
+
+function render(){
+  const raw=$q.value; const q=norm(raw);
+  $clear.hidden = !raw;
+  if(q.length<3 && filter==="all"){ $out.innerHTML = q.length? `<p class="status">あと${3-q.length}文字入力してください。</p>`+landing() : landing(); return; }
+  let list, fuzzy=false, altList=[];
+  if(q.length>=3){
+    list=DATA.filter(d=>d.key.includes(q));
+    if(!list.length){ const lq=loose(raw); if(lq.length>=2){ list=DATA.filter(d=>d.lkey.includes(lq)); fuzzy=list.length>0; } }
+    list.sort((a,b)=>(a.key.startsWith(q)?0:1)-(b.key.startsWith(q)?0:1) || a.key.localeCompare(b.key,"ja"));
+    const seen=new Set(list.map(d=>d.i));
+    altList=DATA.filter(d=>!seen.has(d.i) && d.altKeys.some(k=>k.includes(q))).filter(passFilter);
+  } else list=DATA.slice();
+  list=list.filter(passFilter);
+  let html="";
+  if(!list.length && !altList.length){
+    $out.innerHTML=`<div class="empty"><b>「${esc(raw)}」はリストにありません。</b><br>名称・屋号を確認のうえ、薬剤部へ問い合わせてください。</div>`;
+    return;
+  }
+  if(list.length) html+=`<p class="status">${fuzzy?"完全一致がないため、濁点・小さい文字を無視して探した結果です。":""}${list.length}件${list.length>150?"（先頭150件を表示）":""}</p>`;
+  // 同じ成分で屋号ごとに判定が分かれる場合に警告
+  const groups={};
+  list.forEach(d=>{ if(d.base.length>=3) (groups[d.base]=groups[d.base]||[]).push(d); });
+  const split=Object.values(groups).filter(g=>g.length>1 && new Set(g.map(x=>x.k)).size>1 && g.some(x=>x.yago.length));
+  split.forEach(g=>{
+    html+=`<div class="alert"><b>屋号によって判定が異なります。</b> ${g.map(x=>esc(x.n)+"＝"+K[x.k].v).join(" ／ ")}　処方薬の屋号を確認してください。</div>`;
+  });
+  html+=list.slice(0,150).map(d=>card(d,q.length>=3&&!fuzzy?q:"")).join("");
+  if(altList.length){
+    html+=`<h2 class="sec">「${esc(raw)}」への処方変更が指示されている薬（${altList.length}件）</h2>`;
+    html+=altList.map(d=>card(d,q)).join("");
+  }
+  $out.innerHTML=html;
+}
+
+$q.addEventListener("input",()=>{ memoOpen=false; $help.setAttribute("aria-expanded","false"); render(); });
+$out.addEventListener("click",e=>{
+  const m=e.target.closest("[data-memo]"); if(m){ openMemo(m.dataset.memo); return; }
+  const f=e.target.closest("[data-setfilter]"); if(f){ closeMemo(); setFilter(f.dataset.setfilter); $q.value=""; render(); return; }
+  if(e.target.closest("#closememo")){ closeMemo(); return; }
+  const b=e.target.closest(".goto"); if(!b) return;
+  $q.value=b.dataset.q; render(); window.scrollTo({top:0});
+});
+$q.addEventListener("keydown",e=>{ if(e.key==="Escape"){ $q.value=""; render(); } });
+$clear.addEventListener("click",()=>{ $q.value=""; render(); $q.focus(); });
+function setFilter(f){
+  filter=f;
+  document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",x.dataset.f===f?"true":"false"));
+}
+document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{ setFilter(b.dataset.f); closeMemo(); render(); }));
+
+/* ---------- 新人向け 使い方メモ ---------- */
+let memoOpen=false;
+const $help=document.getElementById("helpbtn");
+function memoHTML(){
+  const clogN=DATA.filter(d=>d.clog).length;
+  return `<div class="memo" id="memo">
+  <div class="memo-head"><h2>はじめての方へ　簡易懸濁法メモ</h2><button type="button" class="closebtn" id="closememo">閉じる</button></div>
+
+  <section><h3>基本の手順</h3><ol>
+    <li>約55℃のお湯を20mL用意する（ポットのお湯2：水1が目安）</li>
+    <li>薬をそのまま入れる。「錠剤破壊後」の薬はシートの上から叩いて亀裂を入れてから入れる</li>
+    <li>画面の「条件」の時間（5分または10分）置く。10分を超えて放置しない</li>
+    <li>よく混ぜてから、すぐに注入する</li>
+    <li>注入後は白湯でチューブをフラッシュする</li>
+  </ol></section>
+
+  <section><h3>画面の見方</h3>
+    <div class="legend" style="margin-bottom:8px">
+      <div><span class="sw v-ok">可</span>簡易懸濁で投与できる</div>
+      <div><span class="sw v-water">水溶</span>水で溶ける（OD錠など）</div>
+      <div><span class="sw v-ng">不可</span>簡易懸濁できない</div>
+      <div><span class="sw v-cond">△</span>条件付き。備考を必ず読む</div>
+      <div><span class="sw v-none">—</span>データなし。薬剤部へ</div>
+    </div>
+    <p>青い枠の<b>「代替 →」</b>は、この薬の代わりに処方変更する薬です。<b>屋号</b>（「」内のメーカー名）は、処方・現物と必ず照合してください。</p>
+  </section>
+
+  <section id="memo-fr"><h3>「8Fr」とは？（チューブの太さ）</h3>
+    <p>Fr（フレンチ）はチューブの太さの単位です。<b>1Fr＝外径 約0.33mm</b>、<b>数字が大きいほど太い</b>チューブです。</p>
+    <p>リストの「最小通過」は、その薬が<b>詰まらずに通った一番細いチューブ</b>です。<br><b>患者さんのチューブの数字 ≧ リストの数字</b> なら通ります。</p>
+    <div class="tbl"><table>
+      <tr><th>表示</th><th>意味</th></tr>
+      <tr><td>8Fr</td><td>細いチューブでも通る（外径 約2.7mm）</td></tr>
+      <tr><td>12Fr</td><td>12Fr以上のチューブで投与。8Frでは詰まるおそれ</td></tr>
+      <tr><td>18Fr</td><td>太いチューブ（胃ろうなど）でないと通りにくい</td></tr>
+    </table></div>
+    <p class="small" style="margin-top:6px">目安：経鼻胃管は8〜12Fr、胃ろうは18〜24Frのものが多い。患者さんのチューブのFrはカルテや製品表示で確認。</p>
+  </section>
+
+  <section><h3>詰まりやすいもの</h3><ul>
+    <li><b>徐放性・腸溶性の顆粒</b>が入ったカプセル（例：ネキシウム、ケタス）</li>
+    <li><b>コーティング顆粒・細粒</b>で分散性が悪いもの（例：パナルジン細粒、トリノシン）</li>
+    <li><b>水で膨らむ・固まる</b>もの（例：フォスブロック、キックリン、カリメート）</li>
+    <li><b>油状・粘り気のある</b>カプセルの中身（例：トコフェロールニコチン酸エステル）</li>
+    <li>散剤の<b>量が多い</b>とき（例：ノイエル細粒）</li>
+  </ul>
+  <p style="margin-top:6px">対策：混ぜながら・ゆっくり注入する、多めの白湯でフラッシュする、懸濁したらすぐ注入する。</p>
+  <p>このリストで詰まりやすい薬は${clogN}品目あります。<button type="button" class="linkbtn" data-setfilter="clog">一覧を見る</button></p>
+  </section>
+
+  <section><h3>やってはいけないこと</h3><ul class="ng">
+    <li>徐放性・腸溶性の薬をつぶす（効き方が変わる・詰まる）</li>
+    <li>懸濁したまま長時間置く（固まる・成分が分解する）</li>
+    <li>熱すぎるお湯を使う（マクロゴール含有の薬は56〜61℃で固まる）</li>
+    <li>マグラックスとニューキノロン系・テトラサイクリン系・L-dopa製剤を同時に懸濁する</li>
+    <li>抗がん剤を素手で扱う（手袋を着け、院内の抗がん剤の手順で）</li>
+  </ul></section>
+
+  <section><h3>困ったとき</h3>
+    <p>リストにない・屋号が違う・判定が「—」・チューブが詰まった、というときは<b>自己判断せず薬剤部へ</b>連絡してください。</p>
+    <p class="small">このメモは一般的な目安です。院内の手順書と違う場合は院内の手順を優先してください。</p>
+  </section>
+  </div>`;
+}
+function openMemo(sec){
+  memoOpen=true; $help.setAttribute("aria-expanded","true");
+  $out.innerHTML=memoHTML();
+  const el=document.getElementById(sec?"memo-"+sec:"memo");
+  if(el) el.scrollIntoView({block:"start"});
+}
+function closeMemo(){
+  if(!memoOpen) return;
+  memoOpen=false; $help.setAttribute("aria-expanded","false"); render();
+}
+$help.addEventListener("click",()=>{ memoOpen?closeMemo():(openMemo(),window.scrollTo({top:0})); });
+render();
+</script>
+
+<script>
+// オフライン対応（GitHub Pages などの https 上でのみ有効）
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
