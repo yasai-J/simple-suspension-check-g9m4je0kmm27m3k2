@@ -1,19 +1,19 @@
 // オフライン用のキャッシュ設定
 // data.js や index.html を更新したら、CACHE_VERSION の数字を1つ上げてください。
 // （上げないと、利用者の端末に古いデータが残ります）
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE = "kendaku-v" + CACHE_VERSION;
 const FILES = [
   "./",
   "./index.html",
   "./data.js",
   "./manifest.webmanifest",
-  "./icons/icon.svg",
-  "./icons/icon-32.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/icon-maskable-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icon.svg",
+  "./icon-32.png",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-maskable-512.png",
+  "./apple-touch-icon.png"
 ];
 
 self.addEventListener("install", e => {
